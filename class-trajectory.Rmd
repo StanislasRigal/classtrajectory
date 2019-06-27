@@ -119,9 +119,9 @@ class.trajectory <- function (Y = NULL, X = NULL, dataset = NULL, interval_size 
   classification$acceleration[which(classification$derivated_curvature < 0)] <- "accelerating"
   classification$acceleration[which(classification$derivated_curvature > 0)] <- "decelerating"
   classification$acceleration[which(classification$direction == "stable" &
-                                     classification$second_order_coefficient < 0)] <- "up_down"
+                                     classification$second_order_coefficient < 0)] <- "concave"
   classification$acceleration[which(classification$direction == "stable" &
-                                     classification$second_order_coefficient > 0)] <- "down_up"
+                                     classification$second_order_coefficient > 0)] <- "convex"
   classification$acceleration[which(is.na(classification$derivated_curvature))] <- "constant"
   
   classification$shape_class <- paste(classification$direction,                                       # give the final classification combining direction and acceleration
