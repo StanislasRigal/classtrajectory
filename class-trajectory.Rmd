@@ -1,5 +1,4 @@
 ---
----
 title: "class-trajectory"
 author: "Stanislas Rigal"
 date: "20 juin 2019"
@@ -186,12 +185,13 @@ dataset<-data.frame(Index=Y,Year=X,Index_SE=Y_SE)
 ## Functions
 
 ```{r Monte Carlo simulation}
-mc_trend<-function(dataset, # data
-                   niter, # number of MC simulations
-                   ref_year=NULL) # reference year, by default equal to the mid year of the interval
+mc_trend<-function(dataset,         # data
+                   niter,           # number of MC simulations
+                   ref_year=NULL,   # reference year, by default equal to the mid year of the interval
+                   correction=TRUE) # set the reference value to 100 and correct values below 0 before logtransformation
   {
   
-  b<-data.frame(t(rep(NA,8)))
+  b<-data.frame(t(rep(NA,9)))
   attributes(b)$names<-c("second_order_coefficient",
                          "first_order_coefficient",
                          "strd_error",
@@ -199,37 +199,59 @@ mc_trend<-function(dataset, # data
                          "intercept",
                          "p_1",
                          "p_2",
-                         "p_3")
- 
+                         "p_3",
+                         "slope_p_value")
+  
   if(is.null(ref_year)){
-    dataset$Index<-100*dataset$Index/dataset$Index[round(nrow(dataset)/2)+1] # set reference year value to 100
-    dataset$Index[which(dataset$Index<=1)]<-1                                # set values < 1 to 1
-    dataset$Index_SE[which(dataset$Index<=1)]<-0                             # and their SE to 0
-    dataset$Index_SE<-100*dataset$Index_SE/dataset$Index[round(nrow(dataset)/2)+1]
-    dataset$sd<-dataset$Index_SE/dataset$Index                               # SE of log transformed data
-    dataset$log<-log(dataset$Index)                                          # log transforme Y
-  }else{
-    dataset$Index<-100*dataset$Index/dataset$Index[which(dataset$Year==ref_year)]
-    dataset$Index[which(dataset$Index<=1)]<-1
-    dataset$Index_SE[which(dataset$Index<=1)]<-0
-    dataset$Index_SE<-100*dataset$Index_SE/dataset$Index[which(dataset$Year==ref_year)]
-    dataset$sd<-dataset$Index_SE/dataset$Index
-    dataset$log<-log(dataset$Index)
+    ref_year<-dataset$Year[round(nrow(dataset)/2)+1]
   }
   
-  for(j in 1:nrow(dataset)){
-    if(dataset$sd[j]>(dataset$log[j])){dataset$sd[j]<-(dataset$log[j])}      # set SE to value amlitude if SE > value (if not, it leads to huge values when resampling in the next loop)
+  if(correction==TRUE){
+    ref_value<-dataset$Index[dataset$Year==ref_year]
+    if(dataset$Index[dataset$Year==ref_year]==1){
+      dataset$Index<-100*dataset$Index             # set reference year value to 100
+      dataset$Index[which(dataset$Index<=1)]<-1    # set values < 1 to 1
+      dataset$Index_SE[which(dataset$Index<=1)]<-0 # and their SE to 0
+      dataset$Index_SE<-100*dataset$Index_SE
+    }
+    if(dataset$Index[dataset$Year==ref_year]!=1 & dataset$Index[dataset$Year==ref_year]!=100){
+      if(dataset$Index[dataset$Year==ref_year]>0){
+        dataset$Index<-dataset$Index/ref_value
+        dataset$Index_SE<-dataset$Index_SE/ref_value
+      }
+      if(dataset$Index[dataset$Year==ref_year]<0){
+        dataset$Index<-dataset$Index/abs(dataset$Index[dataset$Year==ref_year])+2
+        dataset$Index_SE<-dataset$Index_SE/abs(ref_value)
+      }
+      dataset$Index<-100*dataset$Index
+      dataset$Index[which(dataset$Index<=1)]<-1
+      dataset$Index_SE[which(dataset$Index<=1)]<-0
+      dataset$Index_SE<-100*dataset$Index_SE
+    }
+    if(dataset$Index[dataset$Year==ref_year]==100){
+      dataset$Index[which(dataset$Index<=1)]<-1
+      dataset$Index_SE[which(dataset$Index<=1)]<-0
+    }
+    
+    dataset$sd<-dataset$Index_SE/dataset$Index                               # SE of log transformed data
+    dataset$log<-log(dataset$Index)                                          # log transforme Y
+    for(j in 1:nrow(dataset)){
+      if(dataset$sd[j]>(dataset$log[j])){dataset$sd[j]<-(dataset$log[j])}    # set SE to value amlitude if SE > value (if not, it leads to huge values when resampling in the next loop)
+    }
   }
+  
+   if(correction==FALSE){
+    dataset$sd<-dataset$Index_SE
+    dataset$log<-dataset$Index
+    }
   
   for(i in 1:niter){
     
     a<-rnorm(nrow(dataset), mean=dataset$log, sd=dataset$sd)                 # simulate Y values from normal distribution (mean= original Y value, sd = original SE)
+    if(correction==TRUE){
+      a<-exp(a)/exp(a[which(dataset$Year==ref_year)])*100                    # set reference year value to 100 and retransform values if logtranformed
+    }else{a<-a/a[which(dataset$Year==ref_year)]*100}
     
-    if(is.null(ref_year)){
-      a<-exp(a)/exp(a[round(nrow(dataset)/2)+1])*100                         # set reference year value to 100
-      }else{a<-exp(a)/exp(a[which(dataset$Year==ref_year)])*100}
-    
-    #a<-rnorm(nrow(dataset), mean=dataset$Index, sd=dataset$Index_SE)
     a<-class.trajectory(a,dataset$Year)
     b[i,1]<-a$second_order_coefficient
     b[i,2]<-a$first_order_coefficient
@@ -248,6 +270,7 @@ mc_trend<-function(dataset, # data
       b[i,7]<-NA
       b[i,8]<-NA
     }
+    b[i,9]<-a$first_order_pvalue
   }
   b[,4]<-as.factor(b[,4])
   return(b)
@@ -258,11 +281,14 @@ mc_trend<-function(dataset, # data
 ```{r classification with MC}
 require(RVAideMemoire)
 
-res_trend<-function(dataset,niter){
+res_trend<-function(dataset,
+                    niter,
+                    ref_year=NULL,
+                    correction=TRUE){
   
   if(nrow(dataset)>3 & anyNA(dataset$Index_SE)==FALSE){
   
-    simulated<-mc_trend(dataset,niter)
+    simulated<-mc_trend(dataset,niter,ref_year,correction)
     
     if(length(levels(simulated$shape_class))>1){                           # test the significance of the most numerous class
       test<-multinomial.theo.multcomp(simulated$shape_class,p=rep(1/length(levels(simulated$shape_class)),
@@ -290,12 +316,13 @@ res_trend<-function(dataset,niter){
     sd_p_2<-sd(as.numeric(simulated[simulated$shape_class==max_shape,7]), na.rm=T)
     p_3<-mean(as.numeric(simulated[simulated$shape_class==max_shape,8]), na.rm=T)
     sd_p_3<-sd(as.numeric(simulated[simulated$shape_class==max_shape,8]), na.rm=T)
+    slope_p_value<-mean(as.numeric(simulated[simulated$shape_class==max_shape,9]), na.rm=T)
     
-  }else{alpha2<-alpha1<-sd_alpha1<-inter<-strd<-p_1<-sd_p_1<-p_2<-sd_p_2<-p_3<-sd_p_3<-max_shape<-NA}
+  }else{alpha2<-alpha1<-sd_alpha1<-inter<-strd<-p_1<-sd_p_1<-p_2<-sd_p_2<-p_3<-sd_p_3<-max_shape<-slope_p_value<-NA}
   
   
   
-  return(data.frame(alpha2, alpha1,sd_alpha1, inter, strd, p_1, sd_p_1, p_2, sd_p_2, p_3, sd_p_3, max_shape=as.factor(max_shape)))
+  return(data.frame(alpha2, alpha1,sd_alpha1, inter, strd, p_1, sd_p_1, p_2, sd_p_2, p_3, sd_p_3,slope_p_value, max_shape=as.factor(max_shape)))
 }
 
 ```
@@ -305,25 +332,231 @@ res_trend<-function(dataset,niter){
 ```{r plot2, echo=FALSE}
 require(ggplot2)
 
-example<-res_trend(dataset,1000)
+example<-res_trend(dataset,1000,ref_year=2001,correction = TRUE)
 
-dataset$Index<-dataset$Index*100/dataset$Index[round(nrow(dataset)/2)+1]
+dataset$Index<-dataset$Index*100/dataset$Index[dataset$Year==2001] # rescale to have 100 for the reference year (2001)
 
 ggplot(dataset, aes(x = Year, y = Index))+
-    geom_point() + theme_gray(base_size = 20)+
+  geom_ribbon(aes(ymin = Index-Index_SE, ymax = Index+Index_SE), fill = "lightgrey")+
+    geom_point() + theme_light(base_size = 20)+
     labs(x ="Year", y = "Relative abundance")+
     stat_function(fun = function(x){example$alpha2*x^2+example$alpha1*x+example$inter})+
     stat_function(fun = function(x){example$alpha2*x^2+example$alpha1*x+example$inter-1.96*example$strd},linetype="dashed")+
     stat_function(fun = function(x){example$alpha2*x^2+example$alpha1*x+example$inter+1.96*example$strd},linetype="dashed")+
-    geom_vline(xintercept=example$p_1, color="red")+
-    geom_vline(xintercept=example$p_1+1.96*example$sd_p_1, color="red", linetype="dashed")+
-    geom_vline(xintercept=example$p_1-1.96*example$sd_p_1, color="red", linetype="dashed")+
-    geom_vline(xintercept=example$p_2, color="blue")+
-    geom_vline(xintercept=example$p_2+1.96*example$sd_p_2, color="blue", linetype="dashed")+
-    geom_vline(xintercept=example$p_2-1.96*example$sd_p_2, color="blue", linetype="dashed")+
-    geom_vline(xintercept=example$p_3, color="blue")+
-    geom_vline(xintercept=example$p_3+1.96*example$sd_p_3, color="blue", linetype="dashed")+
-    geom_vline(xintercept=example$p_3-1.96*example$sd_p_3, color="blue", linetype="dashed")
+    geom_segment(x=example$p_1,y=0,aes(xend=example$p_1,yend=example$alpha2*example$p_1^2+example$alpha1*example$p_1+example$inter), color="red", size=2)+
+    geom_segment(x=example$p_1+1.96*example$sd_p_1,y=0,aes(xend=example$p_1+1.96*example$sd_p_1,yend=min(abs(dataset$Index))),color="red", linetype="dashed")+
+    geom_segment(x=example$p_1-1.96*example$sd_p_1,y=0,aes(xend=example$p_1-1.96*example$sd_p_1,yend=min(abs(dataset$Index))),color="red", linetype="dashed")+
+    geom_segment(x=example$p_2,y=0,aes(xend=example$p_2,yend=example$alpha2*example$p_2^2+example$alpha1*example$p_2+example$inter),color="blue", size=2)+
+    geom_segment(x=example$p_2+1.96*example$sd_p_2,y=0,aes(xend=example$p_2+1.96*example$sd_p_2,yend=min(abs(dataset$Index))),color="blue", linetype="dashed")+
+    geom_segment(x=example$p_2-1.96*example$sd_p_2,y=0,aes(xend=example$p_2-1.96*example$sd_p_2,yend=min(abs(dataset$Index))),color="blue", linetype="dashed")+
+    geom_segment(x=example$p_3,y=0,aes(xend=example$p_3,yend=example$alpha2*example$p_3^2+example$alpha1*example$p_3+example$inter),color="blue", size=2)+
+    geom_segment(x=example$p_3+1.96*example$sd_p_3,y=0,aes(xend=example$p_3+1.96*example$sd_p_3,yend=min(abs(dataset$Index))), color="blue", linetype="dashed")+
+    geom_segment(x=example$p_3-1.96*example$sd_p_3, y=0,aes(xend=example$p_3-1.96*example$sd_p_3, yend=min(abs(dataset$Index))),color="blue", linetype="dashed")
 ```
 
+## Data for multi species indicators
 
+```{r data with sampling error for multi species indicators (msi)}
+dataset<-data.frame(code_sp=rep(NA,29*10), Index=rep(NA,29*10), Year=rep(NA,29*10), Index_SE=rep(NA,29*10))
+for(i in 1:10){
+    dataset[((i-1)*29+1):(i*29),3] <- X <- c(1989:2017)
+    dataset[((i-1)*29+1):(i*29),1]<-rep(i,29)
+    add<-rnorm(1,sd=2)
+    dataset[((i-1)*29+1):(i*29),2] <- Y <- c(0.1*(X+add)^2-400*(X+add)+400100+rnorm(length(X), mean = 0, sd = 10))
+    dataset[((i-1)*29+1):(i*29),4]<-abs(rnorm(length(X), mean = 0.2*(max(Y)-min(Y)), sd = 0.02*(max(Y)-min(Y))))}
+```
+
+## Functions
+
+```{r correct data for msi according to Soldaat et al., 2017}
+random_index<-function(dataset, ref_year, dataset2){
+  a<-data.frame(matrix(NA, ncol=1, nrow=nrow(dataset)))
+  base_year<-as.numeric(names(table(dataset$Year))[1])
+  last_year<-as.numeric(names(table(dataset$Year))[length(table(dataset$Year))])
+  
+  if(anyNA(dataset$Index)){
+    years<-dataset$Year[is.na(dataset$Index)]
+    for(z in 1:length(years)){
+      if(years[z]==base_year){ # cas annee manquante est base_year
+        k<-z
+        while(k<=length(years) & is.na(dataset$Index[which(dataset$Year==(base_year+k))])){
+          k<-k+1
+        }
+        year_t<-mean(dataset2$Index[which(dataset2$Year==years[z])])
+        year_t_1<-mean(dataset2$Index[which(dataset2$Year==years[k])])
+        rat<-year_t/year_t_1
+        dataset$Index[which(dataset$Year==years[z])]<-rat*dataset$Index[which(dataset$Year==(base_year+k))]
+        dataset$Index_SE[which(dataset$Year==years[z])]<-0#mean(dataset2$Index_SE[which(dataset2$Year==years[z])])
+      }else{
+        year_t<-mean(dataset2$Index[which(dataset2$Year==(years[z]-1))])
+        year_t_1<-mean(dataset2$Index[which(dataset2$Year==years[z])])
+        rat<-year_t_1/year_t
+        dataset$Index[which(dataset$Year==years[z])]<-rat*dataset$Index[which(dataset$Year==(years[z]-1))]
+        dataset$Index_SE[which(dataset$Year==years[z])]<-0#mean(dataset2$Index_SE[which(dataset2$Year==years[z])])
+      }
+    }
+  }
+  
+  correction<-NULL
+  
+  if(dataset$Index[dataset$Year==last_year]>(5*dataset$Index[dataset$Year==ref_year])){
+    correction<-dataset$Index[dataset$Year==last_year]
+    dataset$Index<-dataset$Index/correction*100
+    dataset$Index_SE<-dataset$Index_SE/correction*100
+    ref_year2<-last_year
+  }
+  if(dataset$Index[dataset$Year==base_year]>(5*dataset$Index[dataset$Year==ref_year])){
+    correction<-dataset$Index[dataset$Year==base_year]
+    dataset$Index<-dataset$Index/correction*100
+    dataset$Index_SE<-dataset$Index_SE/correction*100
+    ref_year2<-base_year
+  }
+  
+  dataset$sd<-dataset$Index_SE/dataset$Index
+  dataset$log<-log(dataset$Index)
+  for(j in 1:nrow(dataset)){
+    if(dataset$sd[j]>(dataset$log[j])){dataset$sd[j]<-(dataset$log[j])}
+  }
+  a[,1]<-rnorm(nrow(dataset), mean=dataset$log, sd=dataset$sd)
+  if(is.null(correction)){
+    a_1<-a[which(dataset$Year==ref_year),1]
+    a[,1]<- a[,1]-a_1+log(100)
+  }else{
+    a_1<-a[which(dataset$Year==ref_year2),1]
+    a[,1]<- a[,1]-a_1+log(100)
+  }
+  
+  return(t(a))
+}
+```
+
+```{r msi simulation}
+require(plyr)
+
+mc_trend2<-function(dataset,ref_year,ref_value){
+  dataset<-droplevels(dataset)
+  
+  if(ref_value==100){
+    dataset$Index[which(dataset$Index<=1)]<-1
+    dataset$Index_SE[which(dataset$Index<=1)]<-0
+  }
+
+  if(ref_value==1){
+    dataset<-dataset[order(dataset$code_sp, dataset$Year),]
+    dataset$Index<-100*dataset$Index
+    dataset$Index[which(dataset$Index<=1)]<-1
+    dataset$Index_SE[which(dataset$Index<=1)]<-0
+    dataset$Index_SE<-100*dataset$Index_SE
+  }
+
+  
+  result<-ddply(dataset, .(code_sp), .fun=random_index, ref_year,subset(dataset, !(code_sp %in% levels(droplevels(as.factor(as.character(dataset$code_sp))[is.na(dataset$Index)])))))
+  result[(nrow(result)+1),-1]<-apply(result[,-1],2, function(x){mean(x,na.rm=T)})
+  result[(nrow(result)+1),-1]<-apply(result[-(nrow(result)),-1],2,function(x){sd(x,na.rm=T)})
+  return(result[(nrow(result)-1),-1])}
+```
+
+```{r msi result}
+msi_fun<-function(dataset, ref_year, niter, ref_value){
+  aaa<-matrix(NA,nrow=niter,ncol=length(table(dataset$Year)))
+  for(i in 1:niter){
+    aaa[i,]<-unlist(mc_trend2(dataset,ref_year, ref_value))
+  }
+  mean_msi<-apply(aaa,2, function(x){mean(x,na.rm=T)})
+  sd_msi<-apply(aaa,2, function(x){sd(x,na.rm=T)})
+  
+  aaa2<-data.frame(matrix(NA, ncol=length(table(dataset$Year)), nrow=niter))
+  
+  b<-data.frame(t(rep(NA,10)))
+  attributes(b)$names<-c("second_order_coef","first_order_coef","strd_error","shape_class","intercept","p_1","p_2","p_3","second_order_pvalue","slope_p_value")
+  
+  for(i in 1:niter){
+    aaa2[i,]<-rnorm(length(table(dataset$Year)), mean=mean_msi, sd=sd_msi)
+    
+    aaa2_mod<-exp(aaa2[i,]-aaa2[i,which(as.numeric(names(table(dataset$Year)))==ref_year)]+log(100))
+    a<-class.trajectory(unlist(aaa2_mod),as.numeric(names(table(dataset$Year))))
+    b[i,1]<-a$second_order_coef
+    b[i,2]<-a$first_order_coef
+    b[i,3]<-a$strd_error
+    b[i,4]<-a$shape_class
+    b[i,5]<-a$intercept
+    if(a$second_order_coef!=0){
+      if(findInterval(a$p1, c(min(dataset$Year),max(dataset$Year))) == 1){
+        b[i,6]<-a$p1}else{b[i,6]<-NA}
+      if(findInterval(a$p2, c(min(dataset$Year),max(dataset$Year))) == 1){
+        b[i,7]<-a$p2}else{b[i,7]<-NA}
+      if(findInterval(a$p3, c(min(dataset$Year),max(dataset$Year))) == 1){
+        b[i,8]<-a$p3}else{b[i,8]<-NA}
+    }else{
+      b[i,6]<-NA
+      b[i,7]<-NA
+      b[i,8]<-NA
+    }
+    b[i,9]<-a$second_order_pvalue
+    b[i,10]<-a$first_order_pvalue
+    
+  }
+  b[,4]<-as.factor(b[,4])
+  
+  if(length(levels(b$shape_class))>1){
+    test<-multinomial.theo.multcomp(b$shape_class,p=rep(1/length(levels(b$shape_class)),
+                                                         length(levels(b$shape_class))),prop=TRUE)
+    if(min(test$p.value2[test$observed>test$expected])<0.05){
+      max_shape<-row.names(test$p.value)[which(test$observed==max(test$observed[test$observed>test$expected]))]
+    }else{
+      max_shape<-c("increase_constant","decrease_constant","stable_constant")[which.max(c(length(grep("increase",b$shape_class)),
+                                                                                          length(grep("decrease",b$shape_class)),
+                                                                                          length(grep("stable",b$shape_class))))]
+    }
+  }
+  if(length(levels(b$shape_class))==1){max_shape<-levels(b$shape_class)}
+  
+  alpha2<-mean(as.numeric(b[b$shape_class==max_shape,1]))
+  sd_alpha2<-sd(as.numeric(b[b$shape_class==max_shape,1]))
+  alpha1<-mean(as.numeric(b[b$shape_class==max_shape,2]))
+  sd_alpha1<-sd(as.numeric(b[b$shape_class==max_shape,2]))
+  inter<-mean(as.numeric(b[b$shape_class==max_shape,5]))
+  strd<-mean(as.numeric(b[b$shape_class==max_shape,3]))
+  p_1<-mean(as.numeric(b[b$shape_class==max_shape,6]), na.rm=T)
+  sd_p_1<-sd(as.numeric(b[b$shape_class==max_shape,6]), na.rm=T)
+  p_2<-mean(as.numeric(b[b$shape_class==max_shape,7]), na.rm=T)
+  sd_p_2<-sd(as.numeric(b[b$shape_class==max_shape,7]), na.rm=T)
+  p_3<-mean(as.numeric(b[b$shape_class==max_shape,8]), na.rm=T)
+  sd_p_3<-sd(as.numeric(b[b$shape_class==max_shape,8]), na.rm=T)
+  second_order_pvalue<-sd(as.numeric(b[b$shape_class==max_shape,9]), na.rm=T)
+  first_order_pvalue<-sd(as.numeric(b[b$shape_class==max_shape,10]), na.rm=T)
+  
+  mean_msi_final<-apply(aaa2,2, function(x){exp(mean(x,na.rm=T))})
+  sd_msi_final<-apply(aaa2,2, function(x){sd(x,na.rm=T)})
+  sd_msi_final<-sd_msi_final*mean_msi_final
+  
+  return(list(msi=data.frame(mean_msi_final,sd_msi_final),
+         coef=data.frame(alpha2, alpha1,sd_alpha1, inter, strd, p_1, sd_p_1, p_2, sd_p_2, p_3, sd_p_3, second_order_pvalue, first_order_pvalue, max_shape=as.factor(max_shape))))
+}
+```
+## Results for multi species indicators
+
+```{r plot3, echo=FALSE}
+require(ggplot2)
+
+example2<-msi_fun(dataset,ref_year=2001, niter=100, ref_value=100)
+
+#dataset$Index<-dataset$Index*100/dataset$Index[dataset$Year==2001] # rescale to have 100 for the reference year (2001)
+
+ggplot(example2$msi, aes(x = c(1989:2017), y = mean_msi_final))+
+  geom_ribbon(aes(ymin = mean_msi_final-sd_msi_final, ymax = mean_msi_final+sd_msi_final), fill = "lightgrey")+
+    geom_point() + theme_light(base_size = 20)+
+    labs(x ="Year", y = "Relative abundance")+
+    stat_function(fun = function(x){example2$coef$alpha2*x^2+example2$coef$alpha1*x+example2$coef$inter})+
+    stat_function(fun = function(x){example2$coef$alpha2*x^2+example2$coef$alpha1*x+example2$coef$inter-1.96*example2$coef$strd},linetype="dashed")+
+    stat_function(fun = function(x){example2$coef$alpha2*x^2+example2$coef$alpha1*x+example2$coef$inter+1.96*example2$coef$strd},linetype="dashed")+
+    geom_segment(x=example2$coef$p_1,y=0,aes(xend=example2$coef$p_1,yend=example2$coef$alpha2*example2$coef$p_1^2+example2$coef$alpha1*example2$coef$p_1+example2$coef$inter), color="red", size=2)+
+    geom_segment(x=example2$coef$p_1+1.96*example2$coef$sd_p_1,y=0,aes(xend=example2$coef$p_1+1.96*example2$coef$sd_p_1,yend=min(abs(example2$msi$mean_msi_final))),color="red", linetype="dashed")+
+    geom_segment(x=example2$coef$p_1-1.96*example2$coef$sd_p_1,y=0,aes(xend=example2$coef$p_1-1.96*example2$coef$sd_p_1,yend=min(abs(example2$msi$mean_msi_final))),color="red", linetype="dashed")+
+    geom_segment(x=example2$coef$p_2,y=0,aes(xend=example2$coef$p_2,yend=example2$coef$alpha2*example2$coef$p_2^2+example2$coef$alpha1*example2$coef$p_2+example2$coef$inter),color="blue", size=2)+
+    geom_segment(x=example2$coef$p_2+1.96*example2$coef$sd_p_2,y=0,aes(xend=example2$coef$p_2+1.96*example2$coef$sd_p_2,yend=min(abs(example2$msi$mean_msi_final))),color="blue", linetype="dashed")+
+    geom_segment(x=example2$coef$p_2-1.96*example2$coef$sd_p_2,y=0,aes(xend=example2$coef$p_2-1.96*example2$coef$sd_p_2,yend=min(abs(example2$msi$mean_msi_final))),color="blue", linetype="dashed")+
+    geom_segment(x=example2$coef$p_3,y=0,aes(xend=example2$coef$p_3,yend=example2$coef$alpha2*example2$coef$p_3^2+example2$coef$alpha1*example2$coef$p_3+example2$coef$inter),color="blue", size=2)+
+    geom_segment(x=example2$coef$p_3+1.96*example2$coef$sd_p_3,y=0,aes(xend=example2$coef$p_3+1.96*example2$coef$sd_p_3,yend=min(abs(example2$msi$mean_msi_final))), color="blue", linetype="dashed")+
+    geom_segment(x=example2$coef$p_3-1.96*example2$coef$sd_p_3, y=0,aes(xend=example2$coef$p_3-1.96*example2$coef$sd_p_3, yend=min(abs(example2$msi$mean_msi_final))),color="blue", linetype="dashed")
+```
