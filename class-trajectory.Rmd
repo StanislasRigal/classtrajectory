@@ -538,8 +538,8 @@ msi_fun<-function(dataset, ref_year, niter, ref_value){
 
 ```{r plot3, echo=FALSE}
 require(ggplot2)
-
-example2<-msi_fun(dataset,ref_year=2001, niter=100, ref_value=100)
+niter<-100
+example2<-msi_fun(dataset,ref_year=2001, niter=niter, ref_value=100)
 
 #dataset$Index<-dataset$Index*100/dataset$Index[dataset$Year==2001] # rescale to have 100 for the reference year (2001)
 
@@ -548,15 +548,15 @@ ggplot(example2$msi, aes(x = c(1989:2017), y = mean_msi_final))+
     geom_point() + theme_light(base_size = 20)+
     labs(x ="Year", y = "Relative abundance")+
     stat_function(fun = function(x){example2$coef$alpha2*x^2+example2$coef$alpha1*x+example2$coef$inter})+
-    stat_function(fun = function(x){example2$coef$alpha2*x^2+example2$coef$alpha1*x+example2$coef$inter-1.96*example2$coef$strd},linetype="dashed")+
-    stat_function(fun = function(x){example2$coef$alpha2*x^2+example2$coef$alpha1*x+example2$coef$inter+1.96*example2$coef$strd},linetype="dashed")+
+    stat_function(fun = function(x){example2$coef$alpha2*x^2+example2$coef$alpha1*x+example2$coef$inter-1.96*example2$coef$strd/sqrt(niter)},linetype="dashed")+
+    stat_function(fun = function(x){example2$coef$alpha2*x^2+example2$coef$alpha1*x+example2$coef$inter+1.96*example2$coef$strd/sqrt(niter)},linetype="dashed")+
     geom_segment(x=example2$coef$p_1,y=0,aes(xend=example2$coef$p_1,yend=example2$coef$alpha2*example2$coef$p_1^2+example2$coef$alpha1*example2$coef$p_1+example2$coef$inter), color="red", size=2)+
-    geom_segment(x=example2$coef$p_1+1.96*example2$coef$sd_p_1,y=0,aes(xend=example2$coef$p_1+1.96*example2$coef$sd_p_1,yend=min(abs(example2$msi$mean_msi_final))),color="red", linetype="dashed")+
-    geom_segment(x=example2$coef$p_1-1.96*example2$coef$sd_p_1,y=0,aes(xend=example2$coef$p_1-1.96*example2$coef$sd_p_1,yend=min(abs(example2$msi$mean_msi_final))),color="red", linetype="dashed")+
+    geom_segment(x=example2$coef$p_1+1.96*example2$coef$sd_p_1,y=0,aes(xend=example2$coef$p_1+1.96*example2$coef$sd_p_1/sqrt(niter),yend=min(abs(example2$msi$mean_msi_final))),color="red", linetype="dashed")+
+    geom_segment(x=example2$coef$p_1-1.96*example2$coef$sd_p_1,y=0,aes(xend=example2$coef$p_1-1.96*example2$coef$sd_p_1/sqrt(niter),yend=min(abs(example2$msi$mean_msi_final))),color="red", linetype="dashed")+
     geom_segment(x=example2$coef$p_2,y=0,aes(xend=example2$coef$p_2,yend=example2$coef$alpha2*example2$coef$p_2^2+example2$coef$alpha1*example2$coef$p_2+example2$coef$inter),color="blue", size=2)+
-    geom_segment(x=example2$coef$p_2+1.96*example2$coef$sd_p_2,y=0,aes(xend=example2$coef$p_2+1.96*example2$coef$sd_p_2,yend=min(abs(example2$msi$mean_msi_final))),color="blue", linetype="dashed")+
-    geom_segment(x=example2$coef$p_2-1.96*example2$coef$sd_p_2,y=0,aes(xend=example2$coef$p_2-1.96*example2$coef$sd_p_2,yend=min(abs(example2$msi$mean_msi_final))),color="blue", linetype="dashed")+
+    geom_segment(x=example2$coef$p_2+1.96*example2$coef$sd_p_2,y=0,aes(xend=example2$coef$p_2+1.96*example2$coef$sd_p_2/sqrt(niter),yend=min(abs(example2$msi$mean_msi_final))),color="blue", linetype="dashed")+
+    geom_segment(x=example2$coef$p_2-1.96*example2$coef$sd_p_2,y=0,aes(xend=example2$coef$p_2-1.96*example2$coef$sd_p_2/sqrt(niter),yend=min(abs(example2$msi$mean_msi_final))),color="blue", linetype="dashed")+
     geom_segment(x=example2$coef$p_3,y=0,aes(xend=example2$coef$p_3,yend=example2$coef$alpha2*example2$coef$p_3^2+example2$coef$alpha1*example2$coef$p_3+example2$coef$inter),color="blue", size=2)+
-    geom_segment(x=example2$coef$p_3+1.96*example2$coef$sd_p_3,y=0,aes(xend=example2$coef$p_3+1.96*example2$coef$sd_p_3,yend=min(abs(example2$msi$mean_msi_final))), color="blue", linetype="dashed")+
-    geom_segment(x=example2$coef$p_3-1.96*example2$coef$sd_p_3, y=0,aes(xend=example2$coef$p_3-1.96*example2$coef$sd_p_3, yend=min(abs(example2$msi$mean_msi_final))),color="blue", linetype="dashed")
+    geom_segment(x=example2$coef$p_3+1.96*example2$coef$sd_p_3,y=0,aes(xend=example2$coef$p_3+1.96*example2$coef$sd_p_3/sqrt(niter),yend=min(abs(example2$msi$mean_msi_final))), color="blue", linetype="dashed")+
+    geom_segment(x=example2$coef$p_3-1.96*example2$coef$sd_p_3, y=0,aes(xend=example2$coef$p_3-1.96*example2$coef$sd_p_3/sqrt(niter), yend=min(abs(example2$msi$mean_msi_final))),color="blue", linetype="dashed")
 ```
