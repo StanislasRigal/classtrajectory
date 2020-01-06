@@ -1,8 +1,9 @@
 ---
 title: "class-trajectory"
 author: "Stanislas Rigal"
-date: "20 juin 2019"
-output: html_document
+output:
+  html_document: default
+  pdf_document: default
 ---
 
 ```{r setup, include=FALSE}
@@ -34,15 +35,15 @@ class.trajectory <- function (Y = NULL, X = NULL, dataset = NULL, interval_size 
       if (is.null(dataset) == TRUE) {
         stop("if 'Y' and 'X' are character, 'dataset' must exist")
       }else{
-        Y <- dataset[,Y]
-        X <- dataset[,X]
+        Y <- dataset[, Y]
+        X <- dataset[, X]
       }
     }else{
       if (!(class(Y) %in% c("numeric","integer")) == TRUE & !(class(X) %in% c("numeric","integer")) == TRUE) {stop("'Y' and 'X' must be either characters or vector but 'class' must be similar")}
     }
   }
   
-  data <- data.frame(cbind(Y,X))
+  data <- data.frame(cbind(Y, X))
   data <- data[order(data$X),]                                                                      # ordering the X values
   
   if (length(X)<4){
@@ -64,23 +65,23 @@ class.trajectory <- function (Y = NULL, X = NULL, dataset = NULL, interval_size 
   delta  <-  orthogonal_polynomial$coefficients[2]
   epsilon  <-  orthogonal_polynomial$coefficients[1]
   
-  alpha  <-  lm(orthogonal_polynomial$model[,2][,1]~X)$coef[2]
-  beta  <-  lm(orthogonal_polynomial$model[,2][,1]~X)$coef[1]
+  alpha  <-  lm(orthogonal_polynomial$model[, 2][, 1]~X)$coef[2]
+  beta  <-  lm(orthogonal_polynomial$model[, 2][, 1]~X)$coef[1]
   
-  eta  <-  1/lm((orthogonal_polynomial$model[,2][,1])^2~orthogonal_polynomial$model[,2][,2])$coef[2]
-  theta  <-  (-lm((orthogonal_polynomial$model[,2][,1])^2~orthogonal_polynomial$model[,2][,2])$coef[1])*eta
+  eta  <-  1/lm((orthogonal_polynomial$model[, 2][, 1])^2~orthogonal_polynomial$model[, 2][, 2])$coef[2]
+  theta  <-  (-lm((orthogonal_polynomial$model[, 2][, 1])^2~orthogonal_polynomial$model[, 2][, 2])$coef[1])*eta
   
   Y2<-Y*(max(X)-min(X))/(max(Y)-min(Y))                                                             # p2 and p3 are relevant when Y and X amplitudes are equivalent,
                                                                                                     # in particular when studying scaled-to-1 indices, Y and X amplitudes
                                                                                                     # may be very different, so we scaled the amplitudes to calculate p2 and p3 
   polynomial_orthonormal_basis<-lm(Y2~poly(X,2, raw=T))$coefficients
   
-  if(summary(orthogonal_polynomial)$coefficients[3,4] <= 0.05){                                     # non linear case
+  if(summary(orthogonal_polynomial)$coefficients[3, 4] <= 0.05){                                     # non linear case
     classification <- data.frame(first_order_coefficient = (delta+2*beta*gammab*eta)*alpha,
-                           first_order_pvalue = summary(orthogonal_polynomial)$coefficients[2,4],
+                           first_order_pvalue = summary(orthogonal_polynomial)$coefficients[2, 4],
                            second_order_coefficient = (alpha^2)*gammab*eta,
-                           second_order_pvalue = summary(orthogonal_polynomial)$coefficients[3,4],
-                           strd_error=summary(orthogonal_polynomial)$coefficients[2,2],
+                           second_order_pvalue = summary(orthogonal_polynomial)$coefficients[3, 4],
+                           strd_error=summary(orthogonal_polynomial)$coefficients[2, 2],
                            intercept = epsilon+beta*delta+(beta^2)*gammab*eta+gammab*theta,
                            x_m = (X[length(X)]-X[1])/2+X[1],
                            p1 = -(delta+2*beta*gammab*eta)/(2*alpha*gammab*eta),                    # points of interest
@@ -88,10 +89,10 @@ class.trajectory <- function (Y = NULL, X = NULL, dataset = NULL, interval_size 
                            p3 = (-polynomial_orthonormal_basis[2]-1)/(2*polynomial_orthonormal_basis[3]))
   }else{                                                                                            # linear case
     classification <- data.frame(first_order_coefficient = delta*alpha,
-                           first_order_pvalue = summary(orthogonal_polynomial)$coefficients[2,4],
+                           first_order_pvalue = summary(orthogonal_polynomial)$coefficients[2, 4],
                            second_order_coefficient = 0,
-                           second_order_pvalue = summary(orthogonal_polynomial)$coefficients[3,4],
-                           strd_error=summary(orthogonal_polynomial)$coefficients[2,2],
+                           second_order_pvalue = summary(orthogonal_polynomial)$coefficients[3, 4],
+                           strd_error=summary(orthogonal_polynomial)$coefficients[2, 2],
                            intercept = epsilon+delta*beta,
                            x_m = (X[length(X)]-X[1])/2+X[1],
                            p1 = NA,
@@ -127,12 +128,12 @@ class.trajectory <- function (Y = NULL, X = NULL, dataset = NULL, interval_size 
   classification$direction[which(as.numeric(classification$first_order_pvalue)>0.05 & as.numeric(classification$second_order_pvalue)>0.05)] <- "stable"
   
   classification$acceleration <- NA                                                                 # classify the acceleration
-  classification$acceleration[which(classification$derivated_curvature < 0)] <- "accelerating"
-  classification$acceleration[which(classification$derivated_curvature > 0)] <- "decelerating"
+  classification$acceleration[which(classification$derivated_curvature < 0)] <- "accelerated"
+  classification$acceleration[which(classification$derivated_curvature > 0)] <- "decelerated"
   classification$acceleration[which(classification$direction == "stable" &
-                                     classification$second_order_coefficient < 0)] <- "up_down"
+                                     classification$second_order_coefficient < 0)] <- "concave"
   classification$acceleration[which(classification$direction == "stable" &
-                                     classification$second_order_coefficient > 0)] <- "down_up"
+                                     classification$second_order_coefficient > 0)] <- "convex"
   classification$acceleration[which(is.na(classification$derivated_curvature))] <- "constant"
   
   classification$shape_class <- paste(classification$direction,                                       # give the final classification combining direction and acceleration
@@ -141,14 +142,14 @@ class.trajectory <- function (Y = NULL, X = NULL, dataset = NULL, interval_size 
   
   linear.model.summary <- summary(linear.model)                                                       # provide the linear approach results for comparison
   
-  classification$linear_slope <- linear.model.summary$coefficients[2,1]
-  classification$linear_slope_pvalue <- linear.model.summary$coefficients[2,4]
-  classification$linear_intercept <- linear.model.summary$coefficients[1,1]
+  classification$linear_slope <- linear.model.summary$coefficients[2, 1]
+  classification$linear_slope_pvalue <- linear.model.summary$coefficients[2, 4]
+  classification$linear_intercept <- linear.model.summary$coefficients[1, 1]
   
   classification$first_X_value <- X[1]
   classification$last_X_value <- X[length(X)]
   
-  row.names(classification)<-"Y"
+  row.names(classification) <- "Y"
   
   return(classification)
   
@@ -158,7 +159,7 @@ class.trajectory <- function (Y = NULL, X = NULL, dataset = NULL, interval_size 
 ## Results
 
 ```{r use fonction}
-classification <- class.trajectory(Y,X) # or class.trajectory(dataset = data.frame(Y, X))
+classification <- class.trajectory(Y, X) # or class.trajectory(dataset = data.frame(Y, X))
 classification
 ```
 
@@ -178,21 +179,21 @@ title("Second order polynomial and linear fits of Y")
 X <- c(1989:2017)
 set.seed(1)
 Y <- c(0.1*X^2-400*X+400100+rnorm(length(X), mean = 0, sd = 3))
-Y_SE<-abs(rnorm(length(X), mean = 0.05*(max(Y)-min(Y)), sd = 0.005*(max(Y)-min(Y))))
-dataset<-data.frame(Index=Y,Year=X,Index_SE=Y_SE)
+Y_SE <- abs(rnorm(length(X), mean = 0.05*(max(Y)-min(Y)), sd = 0.005*(max(Y)-min(Y))))
+dataset <- data.frame(Index = Y, Year = X, Index_SE = Y_SE)
 ```
 
 ## Functions
-
+### Monte Carlo simulations
 ```{r Monte Carlo simulation}
-mc_trend<-function(dataset,         # data
+mc_trend <- function(dataset,         # data
                    niter,           # number of MC simulations
                    ref_year=NULL,   # reference year, by default equal to the mid year of the interval
                    correction=TRUE) # set the reference value to 100 and correct values below 0 before logtransformation
   {
   
-  b<-data.frame(t(rep(NA,9)))
-  attributes(b)$names<-c("second_order_coefficient",
+   b <- data.frame(t(rep(NA, 11)))
+  attributes(b)$names <- c("second_order_coefficient",
                          "first_order_coefficient",
                          "strd_error",
                          "shape_class",
@@ -200,84 +201,92 @@ mc_trend<-function(dataset,         # data
                          "p_1",
                          "p_2",
                          "p_3",
-                         "slope_p_value")
+                         "slope_p_value",
+                         "slope",
+                         "ref_year")
   
   if(is.null(ref_year)){
-    ref_year<-dataset$Year[round(nrow(dataset)/2)+1]
+    ref_year <- dataset$Year[round(nrow(dataset)/2)+1]
   }
   
-  if(correction==TRUE){
-    ref_value<-dataset$Index[dataset$Year==ref_year]
-    if(dataset$Index[dataset$Year==ref_year]==1){
-      dataset$Index<-100*dataset$Index             # set reference year value to 100
-      dataset$Index[which(dataset$Index<=1)]<-1    # set values < 1 to 1
-      dataset$Index_SE[which(dataset$Index<=1)]<-0 # and their SE to 0
-      dataset$Index_SE<-100*dataset$Index_SE
+  if(correction == TRUE){
+    ref_value <- dataset$Index[dataset$Year == ref_year]
+    if(ref_value == 1){
+      dataset$Index <- 100*dataset$Index             # set reference year value to 100
+      dataset$Index[which(dataset$Index <= 1)] <- 1    # set values < 1 to 1
+      dataset$Index_SE[which(dataset$Index <= 1)] <- 0 # and their SE to 0
+      dataset$Index_SE <- 100*dataset$Index_SE
     }
-    if(dataset$Index[dataset$Year==ref_year]!=1 & dataset$Index[dataset$Year==ref_year]!=100){
-      if(dataset$Index[dataset$Year==ref_year]>0){
-        dataset$Index<-dataset$Index/ref_value
-        dataset$Index_SE<-dataset$Index_SE/ref_value
+    if(ref_value!=1 & ref_value!=100){
+      if(ref_value>1){
+        dataset$Index <- dataset$Index/ref_value
+        dataset$Index_SE <- dataset$Index_SE/ref_value
       }
-      if(dataset$Index[dataset$Year==ref_year]<0){
-        dataset$Index<-dataset$Index/abs(dataset$Index[dataset$Year==ref_year])+2
-        dataset$Index_SE<-dataset$Index_SE/abs(ref_value)
+      if(ref_value<1){
+        stop("use 'correction = FALSE' when value of the reference year is strictly below 1")
       }
-      dataset$Index<-100*dataset$Index
-      dataset$Index[which(dataset$Index<=1)]<-1
-      dataset$Index_SE[which(dataset$Index<=1)]<-0
-      dataset$Index_SE<-100*dataset$Index_SE
+      dataset$Index <- 100*dataset$Index
+      if(length(which(dataset$Index <= 1))>0){print("caution, low values corrected, if strongly decreasing or increasing trajectory, use respectively  first or last year as referential")}
+      dataset$Index[which(dataset$Index <= 1)] <- 1
+      dataset$Index_SE[which(dataset$Index <= 1)] <- 0
+      dataset$Index_SE <- 100*dataset$Index_SE
     }
-    if(dataset$Index[dataset$Year==ref_year]==100){
-      dataset$Index[which(dataset$Index<=1)]<-1
-      dataset$Index_SE[which(dataset$Index<=1)]<-0
+    if(ref_value == 100){
+      dataset$Index[which(dataset$Index <= 1)] <- 1
+      dataset$Index_SE[which(dataset$Index <= 1)] <- 0
     }
     
-    dataset$sd<-dataset$Index_SE/dataset$Index                               # SE of log transformed data
-    dataset$log<-log(dataset$Index)                                          # log transforme Y
+    dataset$sd <- dataset$Index_SE/dataset$Index                               # SE of log transformed data
+    dataset$log <- log(dataset$Index)                                          # log transforme Y
     for(j in 1:nrow(dataset)){
-      if(dataset$sd[j]>(dataset$log[j])){dataset$sd[j]<-(dataset$log[j])}    # set SE to value amlitude if SE > value (if not, it leads to huge values when resampling in the next loop)
+      if(dataset$sd[j]>(dataset$log[j])){dataset$sd[j] <- (dataset$log[j])}    # set SE to value amplitude if SE > value (if not, it leads to huge values when resampling in the next loop)
     }
   }
   
-   if(correction==FALSE){
-    dataset$sd<-dataset$Index_SE
-    dataset$log<-dataset$Index
-    }
+   if(correction == FALSE){
+     if(min(dataset$Index)<0){
+       min_value <- abs(min(dataset$Index))
+       dataset$Index <- dataset$Index+min_value
+       }else{min_value <- 0}
+     dataset$sd <- dataset$Index_SE
+     dataset$log <- dataset$Index
+   }
   
   for(i in 1:niter){
     
-    a<-rnorm(nrow(dataset), mean=dataset$log, sd=dataset$sd)                 # simulate Y values from normal distribution (mean= original Y value, sd = original SE)
-    if(correction==TRUE){
-      a<-exp(a)/exp(a[which(dataset$Year==ref_year)])*100                    # set reference year value to 100 and retransform values if logtranformed
-    }else{a<-a/a[which(dataset$Year==ref_year)]*100}
+    a <- rnorm(nrow(dataset), mean=dataset$log, sd=dataset$sd)                 # simulate Y values from normal distribution (mean= original Y value, sd = original SE)
+    if(correction == TRUE){
+      a <- exp(a)/exp(a[which(dataset$Year == ref_year)])*100                    # set reference year value to 100 and retransform values if logtranformed
+    }else{a <- a-min_value}
     
-    a<-class.trajectory(a,dataset$Year)
-    b[i,1]<-a$second_order_coefficient
-    b[i,2]<-a$first_order_coefficient
-    b[i,3]<-a$strd_error
-    b[i,4]<-a$shape_class
-    b[i,5]<-a$intercept
+    a <- class.trajectory(a, dataset$Year)
+    b[i, 1] <- a$second_order_coefficient
+    b[i, 2] <- a$first_order_coefficient
+    b[i, 3] <- a$strd_error
+    b[i, 4] <- a$shape_class
+    b[i, 5] <- a$intercept
     if(a$second_order_coefficient!=0){
-      if(findInterval(a$p1, c(min(dataset$Year),max(dataset$Year))) == 1){ # record changing point inside time series
-        b[i,6]<-a$p1}else{b[i,6]<-NA}
-      if(findInterval(a$p2, c(min(dataset$Year),max(dataset$Year))) == 1){
-        b[i,7]<-a$p2}else{b[i,7]<-NA}
-      if(findInterval(a$p3, c(min(dataset$Year),max(dataset$Year))) == 1){
-        b[i,8]<-a$p3}else{b[i,8]<-NA}
+      if(findInterval(a$p1,  c(min(dataset$Year), max(dataset$Year))) == 1){ # record changing point inside time series
+        b[i, 6] <- a$p1}else{b[i, 6] <- NA}
+      if(findInterval(a$p2,  c(min(dataset$Year), max(dataset$Year))) == 1){
+        b[i, 7] <- a$p2}else{b[i, 7] <- NA}
+      if(findInterval(a$p3,  c(min(dataset$Year), max(dataset$Year))) == 1){
+        b[i, 8] <- a$p3}else{b[i, 8] <- NA}
     }else{
-      b[i,6]<-NA
-      b[i,7]<-NA
-      b[i,8]<-NA
+      b[i, 6] <- NA
+      b[i, 7] <- NA
+      b[i, 8] <- NA
     }
-    b[i,9]<-a$first_order_pvalue
+    b[i, 9] <- a$linear_slope_pvalue
+    b[i, 10] <- a$linear_slope
   }
-  b[,4]<-as.factor(b[,4])
+  b[, 4] <- as.factor(b[, 4])
+  b[, 11] <- rep(ref_year, nrow(b))
   return(b)
 }
 ```
 
-
+### Classification with MC simultations
 ```{r classification with MC}
 require(RVAideMemoire)
 
@@ -286,277 +295,302 @@ res_trend<-function(dataset,
                     ref_year=NULL,
                     correction=TRUE){
   
-  if(nrow(dataset)>3 & anyNA(dataset$Index_SE)==FALSE){
+  if(nrow(dataset)>3 & anyNA(dataset$Index_SE) == FALSE){
   
-    simulated<-mc_trend(dataset,niter,ref_year,correction)
+    simulated <- mc_trend(dataset, niter, ref_year, correction)
     
     if(length(levels(simulated$shape_class))>1){                           # test the significance of the most numerous class
-      test<-multinomial.theo.multcomp(simulated$shape_class,p=rep(1/length(levels(simulated$shape_class)),
-                                                           length(levels(simulated$shape_class))),prop=TRUE)
+      test <- multinomial.theo.multcomp(simulated$shape_class, p = rep(1/length(levels(simulated$shape_class)),
+                                                           length(levels(simulated$shape_class))), prop=TRUE)
       if(min(test$p.value2[test$observed>test$expected])<0.05){
-        max_shape<-row.names(test$p.value)[which(test$observed==max(test$observed[test$observed>test$expected]))]
+        max_shape <- row.names(test$p.value)[which(test$observed == max(test$observed[test$observed>test$expected]))]
       }else{                                                               # if non significant class, the linear one is chosen
-        max_shape<-c("increase_constant","decrease_constant","stable_constant")[which.max(c(length(grep("increase",simulated$shape_class)),
-                                                                                            length(grep("decrease",simulated$shape_class)),
-                                                                                            length(grep("stable",simulated$shape_class))))]
+        max_shape <-c("increase_constant", "decrease_constant", "stable_constant")[which.max(c(length(grep("increase", simulated$shape_class)), length(grep("decrease", simulated$shape_class)), length(grep("stable", simulated$shape_class))))]
           }
     }
 
-    if(length(levels(simulated$shape_class))==1){max_shape<-levels(simulated$shape_class)}
+    if(length(levels(simulated$shape_class)) == 1){max_shape <- levels(simulated$shape_class)}
     
-    alpha2<-mean(as.numeric(simulated[simulated$shape_class==max_shape,1]))
-    sd_alpha2<-sd(as.numeric(simulated[simulated$shape_class==max_shape,1]))
-    alpha1<-mean(as.numeric(simulated[simulated$shape_class==max_shape,2]))
-    sd_alpha1<-sd(as.numeric(simulated[simulated$shape_class==max_shape,2]))
-    inter<-mean(as.numeric(simulated[simulated$shape_class==max_shape,5]))
-    strd<-mean(as.numeric(simulated[simulated$shape_class==max_shape,3]))
-    p_1<-mean(as.numeric(simulated[simulated$shape_class==max_shape,6]), na.rm=T)
-    sd_p_1<-sd(as.numeric(simulated[simulated$shape_class==max_shape,6]), na.rm=T)
-    p_2<-mean(as.numeric(simulated[simulated$shape_class==max_shape,7]), na.rm=T)
-    sd_p_2<-sd(as.numeric(simulated[simulated$shape_class==max_shape,7]), na.rm=T)
-    p_3<-mean(as.numeric(simulated[simulated$shape_class==max_shape,8]), na.rm=T)
-    sd_p_3<-sd(as.numeric(simulated[simulated$shape_class==max_shape,8]), na.rm=T)
-    slope_p_value<-mean(as.numeric(simulated[simulated$shape_class==max_shape,9]), na.rm=T)
-    
-  }else{alpha2<-alpha1<-sd_alpha1<-inter<-strd<-p_1<-sd_p_1<-p_2<-sd_p_2<-p_3<-sd_p_3<-max_shape<-slope_p_value<-NA}
-  
-  
-  
-  return(data.frame(alpha2, alpha1,sd_alpha1, inter, strd, p_1, sd_p_1, p_2, sd_p_2, p_3, sd_p_3,slope_p_value, max_shape=as.factor(max_shape)))
-}
+    alpha2 <- mean(as.numeric(simulated[simulated$shape_class == max_shape, 1]))
+    sd_alpha2 <- sd(as.numeric(simulated[simulated$shape_class == max_shape, 1]))
+    alpha1 <- mean(as.numeric(simulated[simulated$shape_class == max_shape, 2]))
+    sd_alpha1 <- sd(as.numeric(simulated[simulated$shape_class == max_shape, 2]))
+    inter <- mean(as.numeric(simulated[simulated$shape_class == max_shape, 5]))
+    strd <- mean(as.numeric(simulated[simulated$shape_class == max_shape, 3]))
+    p_1 <- mean(as.numeric(simulated[simulated$shape_class == max_shape, 6]), na.rm=T)
+    sd_p_1 <- sd(as.numeric(simulated[simulated$shape_class == max_shape, 6]), na.rm=T)
+    if( !is.na(p_1) && findInterval(p_1, c(min(dataset$Year), max(dataset$Year))) != 1){p_1 <- sd_p_1 <- as.numeric(NA)}
+    p_2 <- mean(as.numeric(simulated[simulated$shape_class == max_shape, 7]), na.rm=T)
+    sd_p_2 <- sd(as.numeric(simulated[simulated$shape_class == max_shape, 7]), na.rm=T)
+    if( !is.na(p_2) && findInterval(p_2, c(min(dataset$Year), max(dataset$Year))) != 1){p_2 <- sd_p_2 <- as.numeric(NA)}
+    p_3 <- mean(as.numeric(simulated[simulated$shape_class == max_shape, 8]), na.rm=T)
+    sd_p_3 <- sd(as.numeric(simulated[simulated$shape_class == max_shape, 8]), na.rm=T)
+    if( !is.na(p_3) && findInterval(p_3, c(min(dataset$Year), max(dataset$Year))) != 1){p_3 <- sd_p_3 <- as.numeric(NA)}
+    slope_p_value <- mean(as.numeric(simulated[simulated$shape_class == max_shape, 9]), na.rm=T)
+    slope <- mean(as.numeric(simulated[simulated$shape_class == max_shape, 10]), na.rm=T)
+    slope_sd <- sd(as.numeric(simulated[simulated$shape_class == max_shape, 10]), na.rm=T)
 
+  }else{alpha2 <- alpha1 <- sd_alpha1 <- inter <- strd <- p_1 <- sd_p_1 <- p_2 <- sd_p_2 <- p_3 <- sd_p_3 <- max_shape <- slope_p_value <- slope <- slope_sd <- NA}
+    
+   ref_year <- simulated[1,11]
+   
+  return(data.frame(alpha2, alpha1,sd_alpha1, inter, strd, p_1, sd_p_1, p_2, sd_p_2, p_3, sd_p_3, slope_p_value, slope, slope_sd, ref_year, max_shape=as.factor(max_shape)))
+}
 ```
 
 ## Results for data with sampling error
 
 ```{r plot2, echo=FALSE}
 require(ggplot2)
-niter<-1000
-example<-res_trend(dataset,niter,ref_year=2001,correction = TRUE)
+niter <- 1000
+ref_year <- 2001
+correction <- TRUE
+example <- res_trend(dataset, niter, ref_year, correction)
 
-dataset$Index<-dataset$Index*100/dataset$Index[dataset$Year==2001] # rescale to have 100 for the reference year (2001)
+if(correction == TRUE){
+  if(!is.null(example$ref_year)){
+    dataset$Index <- (dataset$Index/dataset$Index[dataset$Year == example$ref_year])*100
+  }
+}
 
 ggplot(dataset, aes(x = Year, y = Index))+
   geom_ribbon(aes(ymin = Index-Index_SE, ymax = Index+Index_SE), fill = "lightgrey")+
     geom_point() + theme_light(base_size = 20)+
-    labs(x ="Year", y = "Relative abundance")+
+    labs(x = "Year", y = "Relative abundance")+
     stat_function(fun = function(x){example$alpha2*x^2+example$alpha1*x+example$inter})+
-    stat_function(fun = function(x){example$alpha2*x^2+example$alpha1*x+example$inter-1.96*example$strd/sqrt(niter)},linetype="dashed")+
-    stat_function(fun = function(x){example$alpha2*x^2+example$alpha1*x+example$inter+1.96*example$strd/sqrt(niter)},linetype="dashed")+
-    geom_segment(x=example$p_1,y=0,aes(xend=example$p_1,yend=example$alpha2*example$p_1^2+example$alpha1*example$p_1+example$inter), color="red", size=2)+
-    geom_segment(x=example$p_1+1.96*example$sd_p_1,y=0,aes(xend=example$p_1+1.96*example$sd_p_1/sqrt(niter),yend=min(abs(dataset$Index))),color="red", linetype="dashed")+
-    geom_segment(x=example$p_1-1.96*example$sd_p_1,y=0,aes(xend=example$p_1-1.96*example$sd_p_1/sqrt(niter),yend=min(abs(dataset$Index))),color="red", linetype="dashed")+
-    geom_segment(x=example$p_2,y=0,aes(xend=example$p_2,yend=example$alpha2*example$p_2^2+example$alpha1*example$p_2+example$inter),color="blue", size=2)+
-    geom_segment(x=example$p_2+1.96*example$sd_p_2,y=0,aes(xend=example$p_2+1.96*example$sd_p_2/sqrt(niter),yend=min(abs(dataset$Index))),color="blue", linetype="dashed")+
-    geom_segment(x=example$p_2-1.96*example$sd_p_2,y=0,aes(xend=example$p_2-1.96*example$sd_p_2/sqrt(niter),yend=min(abs(dataset$Index))),color="blue", linetype="dashed")+
-    geom_segment(x=example$p_3,y=0,aes(xend=example$p_3,yend=example$alpha2*example$p_3^2+example$alpha1*example$p_3+example$inter),color="blue", size=2)+
-    geom_segment(x=example$p_3+1.96*example$sd_p_3,y=0,aes(xend=example$p_3+1.96*example$sd_p_3/sqrt(niter),yend=min(abs(dataset$Index))), color="blue", linetype="dashed")+
-    geom_segment(x=example$p_3-1.96*example$sd_p_3, y=0,aes(xend=example$p_3-1.96*example$sd_p_3/sqrt(niter), yend=min(abs(dataset$Index))),color="blue", linetype="dashed")
+    stat_function(fun = function(x){example$alpha2*x^2+example$alpha1*x+example$inter-example$strd}, linetype = "dashed")+
+    stat_function(fun = function(x){example$alpha2*x^2+example$alpha1*x+example$inter+example$strd}, linetype = "dashed")+
+    geom_segment(x = example$p_1, y = -Inf, aes(xend = example$p_1, yend = example$alpha2*example$p_1^2+example$alpha1*example$p_1+example$inter),  color = "red",  size = 2)+
+    geom_segment(x = example$p_1+example$sd_p_1, y = -Inf, aes(xend = example$p_1+example$sd_p_1, yend = min(dataset$Index)), color = "red", linetype = "dashed")+
+    geom_segment(x = example$p_1-example$sd_p_1, y = -Inf, aes(xend = example$p_1-example$sd_p_1, yend = min(dataset$Index)), color = "red", linetype = "dashed")+
+    geom_segment(x = example$p_2, y = -Inf, aes(xend = example$p_2, yend = example$alpha2*example$p_2^2+example$alpha1*example$p_2+example$inter), color = "blue",  size = 2)+
+    geom_segment(x = example$p_2+example$sd_p_2, y = -Inf, aes(xend = example$p_2+example$sd_p_2, yend = min(dataset$Index)), color = "blue", linetype = "dashed")+
+    geom_segment(x = example$p_2-example$sd_p_2, y = -Inf, aes(xend = example$p_2-example$sd_p_2, yend = min(dataset$Index)), color = "blue", linetype = "dashed")+
+    geom_segment(x = example$p_3, y = -Inf, aes(xend = example$p_3, yend = example$alpha2*example$p_3^2+example$alpha1*example$p_3+example$inter), color = "blue",  size = 2)+
+    geom_segment(x = example$p_3+example$sd_p_3, y = -Inf, aes(xend = example$p_3+example$sd_p_3, yend = min(dataset$Index)),  color = "blue", linetype = "dashed")+
+    geom_segment(x = example$p_3-example$sd_p_3,  y = -Inf, aes(xend = example$p_3-example$sd_p_3,  yend = min(dataset$Index)), color = "blue", linetype = "dashed")
 ```
 
 ## Data for multi species indicators
 
 ```{r data with sampling error for multi species indicators (msi)}
-dataset<-data.frame(code_sp=rep(NA,29*10), Index=rep(NA,29*10), Year=rep(NA,29*10), Index_SE=rep(NA,29*10))
+dataset <- data.frame(code_sp = rep(NA,29*10), Index = rep(NA,29*10), Year = rep(NA,29*10), Index_SE = rep(NA,29*10))
 for(i in 1:10){
     dataset[((i-1)*29+1):(i*29),3] <- X <- c(1989:2017)
-    dataset[((i-1)*29+1):(i*29),1]<-rep(i,29)
-    add<-rnorm(1,sd=2)
+    dataset[((i-1)*29+1):(i*29),1] <- rep(i,29)
+    add <- rnorm(1, sd = 2)
     dataset[((i-1)*29+1):(i*29),2] <- Y <- c(0.1*(X+add)^2-400*(X+add)+400100+rnorm(length(X), mean = 0, sd = 10))
-    dataset[((i-1)*29+1):(i*29),4]<-abs(rnorm(length(X), mean = 0.2*(max(Y)-min(Y)), sd = 0.02*(max(Y)-min(Y))))}
+    dataset[((i-1)*29+1):(i*29),4] <- abs(rnorm(length(X), mean = 0.2*(max(Y)-min(Y)), sd = 0.02*(max(Y)-min(Y))))}
 ```
 
 ## Functions
+### Correcting data for msi
 
 ```{r correct data for msi according to Soldaat et al., 2017}
-random_index<-function(dataset, ref_year, dataset2){
-  a<-data.frame(matrix(NA, ncol=1, nrow=nrow(dataset)))
-  base_year<-as.numeric(names(table(dataset$Year))[1])
-  last_year<-as.numeric(names(table(dataset$Year))[length(table(dataset$Year))])
+random_index <- function(dataset, ref_year, dataset2){
+  a <- data.frame(matrix(NA, ncol=1, nrow=nrow(dataset)))
+  base_year <- as.numeric(names(table(dataset$Year))[1])
+  last_year <- as.numeric(names(table(dataset$Year))[length(table(dataset$Year))])
   
   if(anyNA(dataset$Index)){
-    years<-dataset$Year[is.na(dataset$Index)]
+    years <- dataset$Year[is.na(dataset$Index)]
     for(z in 1:length(years)){
-      if(years[z]==base_year){ # cas annee manquante est base_year
-        k<-z
-        while(k<=length(years) & is.na(dataset$Index[which(dataset$Year==(base_year+k))])){
-          k<-k+1
+      if(years[z]==base_year){
+        k <- z
+        while(k<=length(years) & is.na(dataset$Index[which(dataset$Year == (base_year+k))])){
+          k <- k+1
         }
-        year_t<-mean(dataset2$Index[which(dataset2$Year==years[z])])
-        year_t_1<-mean(dataset2$Index[which(dataset2$Year==years[k])])
-        rat<-year_t/year_t_1
-        dataset$Index[which(dataset$Year==years[z])]<-rat*dataset$Index[which(dataset$Year==(base_year+k))]
-        dataset$Index_SE[which(dataset$Year==years[z])]<-0#mean(dataset2$Index_SE[which(dataset2$Year==years[z])])
+        year_t <- mean(dataset2$Index[which(dataset2$Year == years[z])])
+        year_t_1 <- mean(dataset2$Index[which(dataset2$Year == years[k])])
+        rat <- year_t/year_t_1
+        dataset$Index[which(dataset$Year == years[z])] <- rat*dataset$Index[which(dataset$Year == (base_year+k))]
+        dataset$Index_SE[which(dataset$Year == years[z])] <- 0
       }else{
-        year_t<-mean(dataset2$Index[which(dataset2$Year==(years[z]-1))])
-        year_t_1<-mean(dataset2$Index[which(dataset2$Year==years[z])])
-        rat<-year_t_1/year_t
-        dataset$Index[which(dataset$Year==years[z])]<-rat*dataset$Index[which(dataset$Year==(years[z]-1))]
-        dataset$Index_SE[which(dataset$Year==years[z])]<-0#mean(dataset2$Index_SE[which(dataset2$Year==years[z])])
+        year_t <- mean(dataset2$Index[which(dataset2$Year == (years[z]-1))])
+        year_t_1 <- mean(dataset2$Index[which(dataset2$Year == years[z])])
+        rat <- year_t_1/year_t
+        dataset$Index[which(dataset$Year == years[z])] <- rat*dataset$Index[which(dataset$Year == (years[z]-1))]
+        dataset$Index_SE[which(dataset$Year == years[z])] <- 0
       }
     }
   }
   
-  correction<-NULL
+  correction <- NULL
   
-  if(dataset$Index[dataset$Year==last_year]>(5*dataset$Index[dataset$Year==ref_year])){
-    correction<-dataset$Index[dataset$Year==last_year]
-    dataset$Index<-dataset$Index/correction*100
-    dataset$Index_SE<-dataset$Index_SE/correction*100
-    ref_year2<-last_year
+  if(dataset$Index[dataset$Year == last_year]>(5*dataset$Index[dataset$Year == ref_year])){
+    correction <- dataset$Index[dataset$Year == last_year]
+    dataset$Index <- dataset$Index/correction*100
+    dataset$Index_SE <- dataset$Index_SE/correction*100
+    ref_year2 <- last_year
   }
-  if(dataset$Index[dataset$Year==base_year]>(5*dataset$Index[dataset$Year==ref_year])){
-    correction<-dataset$Index[dataset$Year==base_year]
-    dataset$Index<-dataset$Index/correction*100
-    dataset$Index_SE<-dataset$Index_SE/correction*100
-    ref_year2<-base_year
+  if(dataset$Index[dataset$Year == base_year]>(5*dataset$Index[dataset$Year == ref_year])){
+    correction <- dataset$Index[dataset$Year == base_year]
+    dataset$Index <- dataset$Index/correction*100
+    dataset$Index_SE <- dataset$Index_SE/correction*100
+    ref_year2 <- base_year
   }
   
-  dataset$sd<-dataset$Index_SE/dataset$Index
-  dataset$log<-log(dataset$Index)
+  dataset$sd <- dataset$Index_SE/dataset$Index
+  dataset$log <- log(dataset$Index)
   for(j in 1:nrow(dataset)){
-    if(dataset$sd[j]>(dataset$log[j])){dataset$sd[j]<-(dataset$log[j])}
+    if(dataset$sd[j]>(dataset$log[j])){dataset$sd[j] <- (dataset$log[j])}
   }
-  a[,1]<-rnorm(nrow(dataset), mean=dataset$log, sd=dataset$sd)
+  a[,1] <- rnorm(nrow(dataset), mean = dataset$log, sd = dataset$sd)
   if(is.null(correction)){
-    a_1<-a[which(dataset$Year==ref_year),1]
-    a[,1]<- a[,1]-a_1+log(100)
+    a_1 <- a[which(dataset$Year == ref_year), 1]
+    a[,1] <- a[,1]-a_1+log(100)
   }else{
-    a_1<-a[which(dataset$Year==ref_year2),1]
-    a[,1]<- a[,1]-a_1+log(100)
+    a_1 <- a[which(dataset$Year == ref_year2), 1]
+    a[,1] <- a[,1]-a_1+log(100)
   }
   
   return(t(a))
 }
 ```
 
+
+### Msi simulation
 ```{r msi simulation}
 require(plyr)
 
-mc_trend2<-function(dataset,ref_year,ref_value){
-  dataset<-droplevels(dataset)
+mc_trend2 <-  function(dataset, ref_year, ref_value){
+  dataset <-  droplevels(dataset)
   
-  if(ref_value==100){
-    dataset$Index[which(dataset$Index<=1)]<-1
-    dataset$Index_SE[which(dataset$Index<=1)]<-0
+  if(ref_value == 100){
+    dataset$Index[which(dataset$Index <= 1)] <-  1
+    dataset$Index_SE[which(dataset$Index <= 1)] <-  0
   }
 
-  if(ref_value==1){
-    dataset<-dataset[order(dataset$code_sp, dataset$Year),]
-    dataset$Index<-100*dataset$Index
-    dataset$Index[which(dataset$Index<=1)]<-1
-    dataset$Index_SE[which(dataset$Index<=1)]<-0
-    dataset$Index_SE<-100*dataset$Index_SE
+  if(ref_value == 1){
+    dataset <-  dataset[order(dataset$code_sp, dataset$Year),]
+    dataset$Index <-  100*dataset$Index
+    dataset$Index[which(dataset$Index <= 1)] <-  1
+    dataset$Index_SE[which(dataset$Index <= 1)] <-  0
+    dataset$Index_SE <-  100*dataset$Index_SE
   }
-
   
-  result<-ddply(dataset, .(code_sp), .fun=random_index, ref_year,subset(dataset, !(code_sp %in% levels(droplevels(as.factor(as.character(dataset$code_sp))[is.na(dataset$Index)])))))
-  result[(nrow(result)+1),-1]<-apply(result[,-1],2, function(x){mean(x,na.rm=T)})
-  result[(nrow(result)+1),-1]<-apply(result[-(nrow(result)),-1],2,function(x){sd(x,na.rm=T)})
-  return(result[(nrow(result)-1),-1])}
+  result <-  ddply(dataset, .(code_sp), .fun=random_index, ref_year,subset(dataset, !(code_sp %in% levels(droplevels(as.factor(as.character(dataset$code_sp))[is.na(dataset$Index)])))))
+  result[(nrow(result)+1),-1] <-  apply(result[,-1], 2, function(x){mean(x,na.rm=T)})
+  result[(nrow(result)+1),-1] <-  apply(result[-(nrow(result)), -1], 2, function(x){sd(x,na.rm=T)})
+  
+  return(result[(nrow(result)-1), -1])}
 ```
 
+### Msi result
 ```{r msi result}
-msi_fun<-function(dataset, ref_year, niter, ref_value){
-  aaa<-matrix(NA,nrow=niter,ncol=length(table(dataset$Year)))
+msi_fun <-  function(dataset, ref_year, niter, ref_value){
+  aaa <-  matrix(NA, nrow = niter, ncol = length(table(dataset$Year)))
   for(i in 1:niter){
-    aaa[i,]<-unlist(mc_trend2(dataset,ref_year, ref_value))
+    aaa[i,] <-  unlist(mc_trend2(dataset, ref_year, ref_value))
   }
-  mean_msi<-apply(aaa,2, function(x){mean(x,na.rm=T)})
-  sd_msi<-apply(aaa,2, function(x){sd(x,na.rm=T)})
+  mean_msi <-  apply(aaa, 2, function(x){mean(x,na.rm=T)})
+  sd_msi <-  apply(aaa, 2, function(x){sd(x,na.rm=T)})
   
-  aaa2<-data.frame(matrix(NA, ncol=length(table(dataset$Year)), nrow=niter))
+  aaa2 <-  data.frame(matrix(NA, ncol=length(table(dataset$Year)), nrow=niter))
   
-  b<-data.frame(t(rep(NA,10)))
-  attributes(b)$names<-c("second_order_coef","first_order_coef","strd_error","shape_class","intercept","p_1","p_2","p_3","second_order_pvalue","slope_p_value")
+  b <- data.frame(t(rep(NA, 10)))
+  attributes(b)$names <- c("second_order_coef", "first_order_coef", "strd_error", "shape_class", "intercept", "p_1", "p_2", "p_3", "second_order_pvalue", "slope_p_value")
   
   for(i in 1:niter){
-    aaa2[i,]<-rnorm(length(table(dataset$Year)), mean=mean_msi, sd=sd_msi)
+    aaa2[i,] <- rnorm(length(table(dataset$Year)), mean=mean_msi, sd=sd_msi)
     
-    aaa2_mod<-exp(aaa2[i,]-aaa2[i,which(as.numeric(names(table(dataset$Year)))==ref_year)]+log(100))
-    a<-class.trajectory(unlist(aaa2_mod),as.numeric(names(table(dataset$Year))))
-    b[i,1]<-a$second_order_coef
-    b[i,2]<-a$first_order_coef
-    b[i,3]<-a$strd_error
-    b[i,4]<-a$shape_class
-    b[i,5]<-a$intercept
+    aaa2_mod <- exp(aaa2[i,]-aaa2[i, which(as.numeric(names(table(dataset$Year))) == ref_year)] + log(100))
+    a <- class.trajectory(unlist(aaa2_mod), as.numeric(names(table(dataset$Year))))
+    b[i, 1] <- a$second_order_coef
+    b[i, 2] <- a$first_order_coef
+    b[i, 3] <- a$strd_error
+    b[i, 4] <- a$shape_class
+    b[i, 5] <- a$intercept
     if(a$second_order_coef!=0){
-      if(findInterval(a$p1, c(min(dataset$Year),max(dataset$Year))) == 1){
-        b[i,6]<-a$p1}else{b[i,6]<-NA}
-      if(findInterval(a$p2, c(min(dataset$Year),max(dataset$Year))) == 1){
-        b[i,7]<-a$p2}else{b[i,7]<-NA}
-      if(findInterval(a$p3, c(min(dataset$Year),max(dataset$Year))) == 1){
-        b[i,8]<-a$p3}else{b[i,8]<-NA}
+      if(findInterval(a$p1, c(min(dataset$Year), max(dataset$Year))) == 1){
+        b[i, 6] <- a$p1}else{b[i, 6] <- NA}
+      if(findInterval(a$p2, c(min(dataset$Year), max(dataset$Year))) == 1){
+        b[i, 7] <- a$p2}else{b[i, 7] <- NA}
+      if(findInterval(a$p3, c(min(dataset$Year), max(dataset$Year))) == 1){
+        b[i, 8] <- a$p3}else{b[i, 8] <- NA}
     }else{
-      b[i,6]<-NA
-      b[i,7]<-NA
-      b[i,8]<-NA
+      b[i, 6] <- NA
+      b[i, 7] <- NA
+      b[i, 8] <- NA
     }
-    b[i,9]<-a$second_order_pvalue
-    b[i,10]<-a$first_order_pvalue
-    
+    b[i, 9] <- a$second_order_pvalue
+    b[i, 10] <- a$first_order_pvalue
+    b[i, 11] <- a$linear_slope
   }
-  b[,4]<-as.factor(b[,4])
+  b[, 4] <- as.factor(b[, 4])
   
   if(length(levels(b$shape_class))>1){
-    test<-multinomial.theo.multcomp(b$shape_class,p=rep(1/length(levels(b$shape_class)),
-                                                         length(levels(b$shape_class))),prop=TRUE)
+    test<-multinomial.theo.multcomp(b$shape_class, p = rep(1/length(levels(b$shape_class)),
+                                                         length(levels(b$shape_class))), prop=TRUE)
     if(min(test$p.value2[test$observed>test$expected])<0.05){
-      max_shape<-row.names(test$p.value)[which(test$observed==max(test$observed[test$observed>test$expected]))]
+      max_shape <- row.names(test$p.value)[which(test$observed == max(test$observed[test$observed>test$expected]))]
     }else{
-      max_shape<-c("increase_constant","decrease_constant","stable_constant")[which.max(c(length(grep("increase",b$shape_class)),
+      max_shape <- c("increase_constant","decrease_constant","stable_constant")[which.max(c(length(grep("increase",b$shape_class)),
                                                                                           length(grep("decrease",b$shape_class)),
                                                                                           length(grep("stable",b$shape_class))))]
     }
   }
-  if(length(levels(b$shape_class))==1){max_shape<-levels(b$shape_class)}
+  if(length(levels(b$shape_class)) == 1){max_shape <- levels(b$shape_class)}
   
-  alpha2<-mean(as.numeric(b[b$shape_class==max_shape,1]))
-  sd_alpha2<-sd(as.numeric(b[b$shape_class==max_shape,1]))
-  alpha1<-mean(as.numeric(b[b$shape_class==max_shape,2]))
-  sd_alpha1<-sd(as.numeric(b[b$shape_class==max_shape,2]))
-  inter<-mean(as.numeric(b[b$shape_class==max_shape,5]))
-  strd<-mean(as.numeric(b[b$shape_class==max_shape,3]))
-  p_1<-mean(as.numeric(b[b$shape_class==max_shape,6]), na.rm=T)
-  sd_p_1<-sd(as.numeric(b[b$shape_class==max_shape,6]), na.rm=T)
-  p_2<-mean(as.numeric(b[b$shape_class==max_shape,7]), na.rm=T)
-  sd_p_2<-sd(as.numeric(b[b$shape_class==max_shape,7]), na.rm=T)
-  p_3<-mean(as.numeric(b[b$shape_class==max_shape,8]), na.rm=T)
-  sd_p_3<-sd(as.numeric(b[b$shape_class==max_shape,8]), na.rm=T)
-  second_order_pvalue<-sd(as.numeric(b[b$shape_class==max_shape,9]), na.rm=T)
-  first_order_pvalue<-sd(as.numeric(b[b$shape_class==max_shape,10]), na.rm=T)
+  alpha2 <- mean(as.numeric(b[b$shape_class == max_shape, 1]))
+  sd_alpha2 <- sd(as.numeric(b[b$shape_class == max_shape, 1]))
+  alpha1 <- mean(as.numeric(b[b$shape_class == max_shape, 2]))
+  sd_alpha1 <- sd(as.numeric(b[b$shape_class == max_shape, 2]))
+  inter <- mean(as.numeric(b[b$shape_class == max_shape, 5]))
+  strd <- mean(as.numeric(b[b$shape_class == max_shape, 3]))
+  p_1 <- mean(as.numeric(b[b$shape_class == max_shape, 6]), na.rm=T)
+  sd_p_1 <- sd(as.numeric(b[b$shape_class == max_shape, 6]), na.rm=T)
+  if( !is.na(p_1) && findInterval(p_1, c(min(dataset$Year), max(dataset$Year))) != 1){p_1 <- sd_p_1 <- as.numeric(NA)}
+  p_2 <- mean(as.numeric(b[b$shape_class == max_shape, 7]), na.rm=T)
+  sd_p_2 <- sd(as.numeric(b[b$shape_class == max_shape, 7]), na.rm=T)
+  if( !is.na(p_2) && findInterval(p_2, c(min(dataset$Year), max(dataset$Year))) != 1){p_2 <- sd_p_2 <- as.numeric(NA)}
+  p_3 <- mean(as.numeric(b[b$shape_class == max_shape, 8]), na.rm=T)
+  sd_p_3 <- sd(as.numeric(b[b$shape_class == max_shape, 8]), na.rm=T)
+  if( !is.na(p_3) && findInterval(p_3, c(min(dataset$Year), max(dataset$Year))) != 1){p_3 <- sd_p_3 <- as.numeric(NA)}
+  second_order_pvalue <- sd(as.numeric(b[b$shape_class == max_shape, 9]), na.rm=T)
+  first_order_pvalue <- sd(as.numeric(b[b$shape_class == max_shape, 10]), na.rm=T)
+  slope <- mean(as.numeric(b[b$shape_class == max_shape, 11]), na.rm=T)
+  slope_sd <- sd(as.numeric(b[b$shape_class == max_shape, 11]), na.rm=T)
   
-  mean_msi_final<-apply(aaa2,2, function(x){exp(mean(x,na.rm=T))})
-  sd_msi_final<-apply(aaa2,2, function(x){sd(x,na.rm=T)})
+  mean_msi_final<-apply(aaa2, 2, function(x){exp(mean(x,na.rm = T))})
+  sd_msi_final<-apply(aaa2, 2, function(x){sd(x,na.rm = T)})
   sd_msi_final<-sd_msi_final*mean_msi_final
   
-  return(list(msi=data.frame(mean_msi_final,sd_msi_final),
-         coef=data.frame(alpha2, alpha1,sd_alpha1, inter, strd, p_1, sd_p_1, p_2, sd_p_2, p_3, sd_p_3, second_order_pvalue, first_order_pvalue, max_shape=as.factor(max_shape))))
+  return(list(msi = data.frame(mean_msi_final, sd_msi_final),
+              coef = data.frame(alpha2, alpha1,sd_alpha1, inter, strd, p_1, sd_p_1, p_2, sd_p_2, p_3, sd_p_3,
+                              second_order_pvalue, first_order_pvalue, slope, slope_sd, max_shape = as.factor(max_shape))))
 }
 ```
 ## Results for multi species indicators
 
 ```{r plot3, echo=FALSE}
 require(ggplot2)
-niter<-100
-example2<-msi_fun(dataset,ref_year=2001, niter=niter, ref_value=100)
+niter <- 100
+example2 <- msi_fun(dataset,ref_year = 2001, niter = niter, ref_value = 100)
 
-#dataset$Index<-dataset$Index*100/dataset$Index[dataset$Year==2001] # rescale to have 100 for the reference year (2001)
+#to draw confidence intervals
+add <- 1.96/sqrt(niter)
+#to draw standar deviation
+add <- 1
+
+if(example2$coef$max_shape == "stable_constant"){
+    example2$coef$alpha1 <- 0
+    example2$coef$inter <- mean(example2$msi$mean_msi_final)}
 
 ggplot(example2$msi, aes(x = c(1989:2017), y = mean_msi_final))+
   geom_ribbon(aes(ymin = mean_msi_final-sd_msi_final, ymax = mean_msi_final+sd_msi_final), fill = "lightgrey")+
     geom_point() + theme_light(base_size = 20)+
     labs(x ="Year", y = "Relative abundance")+
     stat_function(fun = function(x){example2$coef$alpha2*x^2+example2$coef$alpha1*x+example2$coef$inter})+
-    stat_function(fun = function(x){example2$coef$alpha2*x^2+example2$coef$alpha1*x+example2$coef$inter-1.96*example2$coef$strd/sqrt(niter)},linetype="dashed")+
-    stat_function(fun = function(x){example2$coef$alpha2*x^2+example2$coef$alpha1*x+example2$coef$inter+1.96*example2$coef$strd/sqrt(niter)},linetype="dashed")+
-    geom_segment(x=example2$coef$p_1,y=0,aes(xend=example2$coef$p_1,yend=example2$coef$alpha2*example2$coef$p_1^2+example2$coef$alpha1*example2$coef$p_1+example2$coef$inter), color="red", size=2)+
-    geom_segment(x=example2$coef$p_1+1.96*example2$coef$sd_p_1,y=0,aes(xend=example2$coef$p_1+1.96*example2$coef$sd_p_1/sqrt(niter),yend=min(abs(example2$msi$mean_msi_final))),color="red", linetype="dashed")+
-    geom_segment(x=example2$coef$p_1-1.96*example2$coef$sd_p_1,y=0,aes(xend=example2$coef$p_1-1.96*example2$coef$sd_p_1/sqrt(niter),yend=min(abs(example2$msi$mean_msi_final))),color="red", linetype="dashed")+
-    geom_segment(x=example2$coef$p_2,y=0,aes(xend=example2$coef$p_2,yend=example2$coef$alpha2*example2$coef$p_2^2+example2$coef$alpha1*example2$coef$p_2+example2$coef$inter),color="blue", size=2)+
-    geom_segment(x=example2$coef$p_2+1.96*example2$coef$sd_p_2,y=0,aes(xend=example2$coef$p_2+1.96*example2$coef$sd_p_2/sqrt(niter),yend=min(abs(example2$msi$mean_msi_final))),color="blue", linetype="dashed")+
-    geom_segment(x=example2$coef$p_2-1.96*example2$coef$sd_p_2,y=0,aes(xend=example2$coef$p_2-1.96*example2$coef$sd_p_2/sqrt(niter),yend=min(abs(example2$msi$mean_msi_final))),color="blue", linetype="dashed")+
-    geom_segment(x=example2$coef$p_3,y=0,aes(xend=example2$coef$p_3,yend=example2$coef$alpha2*example2$coef$p_3^2+example2$coef$alpha1*example2$coef$p_3+example2$coef$inter),color="blue", size=2)+
-    geom_segment(x=example2$coef$p_3+1.96*example2$coef$sd_p_3,y=0,aes(xend=example2$coef$p_3+1.96*example2$coef$sd_p_3/sqrt(niter),yend=min(abs(example2$msi$mean_msi_final))), color="blue", linetype="dashed")+
-    geom_segment(x=example2$coef$p_3-1.96*example2$coef$sd_p_3, y=0,aes(xend=example2$coef$p_3-1.96*example2$coef$sd_p_3/sqrt(niter), yend=min(abs(example2$msi$mean_msi_final))),color="blue", linetype="dashed")
+    stat_function(fun = function(x){example2$coef$alpha2*x^2+example2$coef$alpha1*x+example2$coef$inter-add*example2$coef$strd}, linetype = "dashed")+
+    stat_function(fun = function(x){example2$coef$alpha2*x^2+example2$coef$alpha1*x+example2$coef$inter+add*example2$coef$strd}, linetype = "dashed")+
+    geom_segment(x = example2$coef$p_1, y = 0, aes(xend = example2$coef$p_1, yend = example2$coef$alpha2*example2$coef$p_1^2+example2$coef$alpha1*example2$coef$p_1+example2$coef$inter), color = "red", size = 2)+
+    geom_segment(x = example2$coef$p_1+add*example2$coef$sd_p_1, y = 0, aes(xend = example2$coef$p_1+add*example2$coef$sd_p_1, yend = min(abs(example2$msi$mean_msi_final))), color = "red", linetype = "dashed")+
+    geom_segment(x = example2$coef$p_1-add*example2$coef$sd_p_1, y = 0, aes(xend = example2$coef$p_1-add*example2$coef$sd_p_1, yend = min(abs(example2$msi$mean_msi_final))), color = "red", linetype = "dashed")+
+    geom_segment(x = example2$coef$p_2, y = 0, aes(xend = example2$coef$p_2, yend = example2$coef$alpha2*example2$coef$p_2^2+example2$coef$alpha1*example2$coef$p_2+example2$coef$inter), color = "blue",  size = 2)+
+    geom_segment(x = example2$coef$p_2+add*example2$coef$sd_p_2, y = 0, aes(xend = example2$coef$p_2+add*example2$coef$sd_p_2, yend = min(abs(example2$msi$mean_msi_final))), color = "blue", linetype = "dashed")+
+    geom_segment(x = example2$coef$p_2-add*example2$coef$sd_p_2, y = 0, aes(xend = example2$coef$p_2-add*example2$coef$sd_p_2, yend = min(abs(example2$msi$mean_msi_final))), color = "blue", linetype = "dashed")+
+    geom_segment(x = example2$coef$p_3, y = 0, aes(xend = example2$coef$p_3, yend = example2$coef$alpha2*example2$coef$p_3^2+example2$coef$alpha1*example2$coef$p_3+example2$coef$inter), color = "blue",  size = 2)+
+    geom_segment(x = example2$coef$p_3+add*example2$coef$sd_p_3, y = 0, aes(xend = example2$coef$p_3+add*example2$coef$sd_p_3, yend = min(abs(example2$msi$mean_msi_final))),  color = "blue", linetype = "dashed")+
+    geom_segment(x = example2$coef$p_3-add*example2$coef$sd_p_3,  y = 0, aes(xend = example2$coef$p_3-add*example2$coef$sd_p_3,  yend = min(abs(example2$msi$mean_msi_final))), color = "blue", linetype = "dashed")
 ```
